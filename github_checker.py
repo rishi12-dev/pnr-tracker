@@ -9,19 +9,33 @@ RAILKIT_KEY = os.environ["PNR_API_KEY"]
 
 STATUS_FILE = Path("pnr_status.json")
 
+# Your PNR and Telegram Chat ID
+PNRS = [
+    "4863173213"
+]
+
+CHAT_ID = "1392686700"
+
 
 def load_status():
     if not STATUS_FILE.exists():
         return {}
+
     try:
-        return json.loads(STATUS_FILE.read_text(encoding="utf-8"))
+        return json.loads(
+            STATUS_FILE.read_text(encoding="utf-8")
+        )
     except Exception:
         return {}
 
 
 def save_status(data):
     STATUS_FILE.write_text(
-        json.dumps(data, indent=2, ensure_ascii=False),
+        json.dumps(
+            data,
+            indent=2,
+            ensure_ascii=False
+        ),
         encoding="utf-8"
     )
 
@@ -46,13 +60,18 @@ def check_pnr(pnr):
     data = json.loads(result.stdout)
 
     if not data.get("success"):
-        raise RuntimeError(data.get("error", "PNR check failed"))
+        raise RuntimeError(
+            data.get("error", "PNR check failed")
+        )
 
     return data["data"]
 
 
 def send_telegram(message):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    url = (
+        f"https://api.telegram.org/"
+        f"bot{TELEGRAM_TOKEN}/sendMessage"
+    )
 
     response = requests.post(
         url,
@@ -66,22 +85,10 @@ def send_telegram(message):
     response.raise_for_status()
 
 
-# -------------------------------------------------
-# PUT YOUR PNR AND TELEGRAM CHAT ID HERE
-# -------------------------------------------------
-
-PNRS = [
-    "4863173213"
-]
-
-CHAT_ID = "1392686700"
-
-
-# -------------------------------------------------
-
 previous = load_status()
 
 for pnr in PNRS:
+
     try:
         data = check_pnr(pnr)
 
@@ -91,32 +98,51 @@ for pnr in PNRS:
 
         for passenger in passengers:
             current = passenger.get("current") or {}
+
             status = (
                 current.get("details")
                 or current.get("status")
                 or "-"
             )
+
             statuses.append(status)
 
         current_status = " | ".join(statuses) or "-"
 
         old_status = previous.get(pnr)
 
-        print(f"PNR {pnr}")
+        print(f"PNR: {pnr}")
         print(f"Previous: {old_status}")
-        print(f"Current:  {current_status}")
+        print(f"Current: {current_status}")
 
+        # First check: save the status as baseline
         if old_status is None:
-            # First run: save baseline, don't send alert.
+
             previous[pnr] = current_status
 
+            # Send first status so we know the bot works
+            train = data.get("train") or {}
+            journey = data.get("journey") or {}
+
+            message = (
+                "🚆 PNR TRACKING STARTED\n\n"
+                f"PNR: {pnr}\n"
+                f"Train: {train.get('number', '-')}"
+                f" {train.get('name', '')}\n"
+                f"Journey: {journey.get('dateOfJourney', '-')}\n\n"
+                f"Current Status: {current_status}\n"
+            )
+
+            send_telegram(message)
+
+        # Status changed
         elif old_status != current_status:
 
             train = data.get("train") or {}
             journey = data.get("journey") or {}
 
             message = (
-                "🚆 PNR STATUS CHANGED\n\n"
+                "🔔 PNR STATUS CHANGED\n\n"
                 f"PNR: {pnr}\n"
                 f"Train: {train.get('number', '-')}"
                 f" {train.get('name', '')}\n"
@@ -130,7 +156,7 @@ for pnr in PNRS:
             previous[pnr] = current_status
 
     except Exception as e:
-        print(f"Error checking {pnr}: {e}")
+        print(f"❌ Error checking {pnr}: {e}")
 
 
 save_status(previous)
