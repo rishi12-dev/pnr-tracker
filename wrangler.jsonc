@@ -1,0 +1,15 @@
+{
+  "name": "pnr-tracker-bot",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-26",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "pnr-tracker-db",
+      "database_id": "f8803fa0-7e1e-4ca8-8512-bb692bf0a3f7"
+    }
+  ]
+}
