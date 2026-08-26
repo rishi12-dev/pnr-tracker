@@ -1,0 +1,8 @@
+{
+  "name": "pnr-tracker-railkit-bridge",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "railkit": "^4.1.0"
+  }
+}
