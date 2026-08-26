@@ -1,3 +1,4 @@
 python-dotenv>=1.0,<2
 APScheduler>=3.10,<4
 python-telegram-bot>=22,<23
+requests>=2.32,<3
