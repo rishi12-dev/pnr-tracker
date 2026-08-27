@@ -9,15 +9,23 @@ async function sendTelegram(env, chatId, text) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        chat_id: chatId,
-        text,
+        chat_id: String(chatId),
+        text: text,
       }),
     }
   );
 
+  const result = await response.text();
+
+  console.log("Telegram response:", result);
+
   if (!response.ok) {
-    console.error("Telegram error:", await response.text());
+    throw new Error(
+      `Telegram API error ${response.status}: ${result}`
+    );
   }
+
+  return result;
 }
 
 function isValidPNR(pnr) {
@@ -26,6 +34,7 @@ function isValidPNR(pnr) {
 
 function getCommand(text) {
   const parts = text.trim().split(/\s+/);
+
   return {
     command: (parts[0] || "").toLowerCase(),
     argument: parts[1] || "",
@@ -80,7 +89,8 @@ async function handleAdd(env, chatId, pnr) {
   await env.DB.prepare(`
     INSERT INTO pnrs (telegram_id, pnr)
     VALUES (?, ?)
-    ON CONFLICT(telegram_id, pnr) DO NOTHING
+    ON CONFLICT(telegram_id, pnr)
+    DO NOTHING
   `)
     .bind(chatId, pnr)
     .run();
@@ -88,12 +98,13 @@ async function handleAdd(env, chatId, pnr) {
   await sendTelegram(
     env,
     chatId,
-    `✅ PNR ${pnr} added.
+    `✅ PNR ${pnr} added successfully.
 
-Use:
+Now use:
+
 /check ${pnr}
 
-to check its live status.`
+to check the live status.`
   );
 }
 
@@ -203,14 +214,18 @@ async function handleCheck(env, chatId, pnr) {
       `Journey Date: ${journey.dateOfJourney || "-"}\n` +
       passengerText;
 
-    await sendTelegram(env, chatId, message);
+    await sendTelegram(
+      env,
+      chatId,
+      message
+    );
 
     const statusText =
       passengers
         .map(
-          (p) =>
-            p?.current?.details ||
-            p?.current?.status ||
+          (passenger) =>
+            passenger?.current?.details ||
+            passenger?.current?.status ||
             "-"
         )
         .join(" | ") || "-";
@@ -260,58 +275,108 @@ async function handleUpdate(update, env) {
   const username = message.from?.username || "";
   const text = message.text || "";
 
-  await saveUser(env, chatId, username);
+  await saveUser(
+    env,
+    chatId,
+    username
+  );
 
-  const { command, argument } = getCommand(text);
+  const {
+    command,
+    argument
+  } = getCommand(text);
 
   switch (command) {
+
     case "/start":
-      await handleStart(env, chatId);
+      await handleStart(
+        env,
+        chatId
+      );
       break;
 
     case "/add":
-      await handleAdd(env, chatId, argument);
+      await handleAdd(
+        env,
+        chatId,
+        argument
+      );
       break;
 
     case "/check":
-      await handleCheck(env, chatId, argument);
+      await handleCheck(
+        env,
+        chatId,
+        argument
+      );
       break;
 
     case "/list":
-      await handleList(env, chatId);
+      await handleList(
+        env,
+        chatId
+      );
       break;
 
     case "/remove":
-      await handleRemove(env, chatId, argument);
+      await handleRemove(
+        env,
+        chatId,
+        argument
+      );
       break;
 
     default:
       await sendTelegram(
         env,
         chatId,
-        "❓ Unknown command.\n\nSend /start to see all commands."
+        "❓ Unknown command.\n\nSend /start to see available commands."
       );
   }
 }
 
 export default {
+
   async fetch(request, env) {
+
     if (request.method !== "POST") {
-      return new Response("PNR Tracker Bot is running.");
+      return new Response(
+        "🚆 PNR Tracker Bot is running.",
+        {
+          status: 200
+        }
+      );
     }
 
     try {
+
       const update = await request.json();
 
-      await handleUpdate(update, env);
+      await handleUpdate(
+        update,
+        env
+      );
 
-      return new Response("OK");
+      return new Response(
+        "OK",
+        {
+          status: 200
+        }
+      );
+
     } catch (error) {
-      console.error(error);
 
-      return new Response("Internal Server Error", {
-        status: 500,
-      });
+      console.error(
+        "Worker error:",
+        error
+      );
+
+      return new Response(
+        `Worker error: ${error.message || "Unknown error"}`,
+        {
+          status: 500
+        }
+      );
     }
   },
 };
