@@ -221,7 +221,8 @@ async function handleCheck(env, chatId, pnr) {
   try {
     configure(env.RAILKIT_API_KEY);
 
-    const result = await checkPNRStatus(pnr);
+    const result =
+      await checkPNRStatus(pnr);
 
     const data =
       result?.data || result || {};
@@ -346,94 +347,127 @@ Example:
     const result =
       await trackTrain(trainNumber);
 
-    console.log(
-      "RailKit train response:",
-      JSON.stringify(result)
-    );
+    if (!result?.success) {
+      throw new Error(
+        result?.error ||
+        "Train status unavailable"
+      );
+    }
 
     const data =
-      result?.data || result || {};
-
-    const train =
-      data.train || {};
+      result.data || {};
 
     const trainNo =
-      train.number ||
-      data.trainNumber ||
       data.trainNo ||
       trainNumber;
 
     const trainName =
-      train.name ||
       data.trainName ||
       "Unknown Train";
 
-    const status =
-      data.status ||
+    const statusNote =
       data.statusNote ||
-      data.note ||
       "Status unavailable";
 
+    const lastUpdate =
+      data.lastUpdate ||
+      "-";
+
+    const currentStationCode =
+      data.currentStationCode ||
+      "-";
+
+    const timeline =
+      Array.isArray(data.timeline)
+        ? data.timeline
+        : [];
+
     const currentStation =
-      data.currentStation ||
-      data.currentStationName ||
-      data.current ||
-      "-";
+      timeline.find(
+        (point) =>
+          point?.status === "current"
+      );
 
-    const nextStation =
-      data.nextStation ||
-      data.nextStationName ||
-      "-";
+    const nextStationIndex =
+      timeline.findIndex(
+        (point) =>
+          point?.status === "current"
+      );
 
-    const delay =
-      data.delay ??
-      data.delayMinutes ??
-      "-";
+    let nextStation = null;
+
+    if (nextStationIndex >= 0) {
+      nextStation =
+        timeline
+          .slice(nextStationIndex + 1)
+          .find(
+            (point) =>
+              point?.status === "upcoming"
+          );
+    }
 
     let message =
       `🚆 LIVE TRAIN STATUS\n\n` +
       `Train: ${trainNo} ${trainName}\n\n` +
-      `📍 Status: ${status}\n` +
-      `📌 Current: ${currentStation}\n` +
-      `➡️ Next: ${nextStation}\n` +
-      `⏱️ Delay: ${delay}\n`;
+      `📍 Status:\n${statusNote}\n\n` +
+      `📌 Current Station: ${
+        currentStation?.stationName ||
+        currentStationCode ||
+        "-"
+      }\n` +
+      `🔢 Station Code: ${
+        currentStation?.stationCode ||
+        currentStationCode ||
+        "-"
+      }\n`;
 
-    if (Array.isArray(data.timeline)) {
-      const timeline =
-        data.timeline;
+    if (nextStation) {
+      message +=
+        `➡️ Next Station: ${
+          nextStation.stationName ||
+          "-"
+        } (${
+          nextStation.stationCode ||
+          "-"
+        })\n`;
+    }
 
-      const current =
-        timeline.find(
-          (item) =>
-            item?.status === "current"
-        );
+    if (
+      currentStation?.type === "stoppage"
+    ) {
+      const arrival =
+        currentStation.arrival || {};
 
-      const upcoming =
-        timeline.find(
-          (item) =>
-            item?.status === "upcoming"
-        );
+      const departure =
+        currentStation.departure || {};
 
-      if (current) {
+      message +=
+        `\n🕐 Arrival: ${
+          arrival.actual ||
+          arrival.scheduled ||
+          "-"
+        }`;
+
+      if (arrival.delay) {
         message +=
-          `\n📍 Current Station: ${
-            current.stationName ||
-            current.station ||
-            current.stationCode ||
-            "-"
-          }\n`;
+          ` (${arrival.delay})`;
       }
 
-      if (upcoming) {
+      message +=
+        `\n🚉 Departure: ${
+          departure.actual ||
+          departure.scheduled ||
+          "-"
+        }`;
+
+      if (departure.delay) {
         message +=
-          `➡️ Next Station: ${
-            upcoming.stationName ||
-            upcoming.station ||
-            upcoming.stationCode ||
-            "-"
-          }\n`;
+          ` (${departure.delay})`;
       }
     }
+
+    message +=
+      `\n\n🕐 Last Update: ${lastUpdate}`;
 
     await sendTelegram(
       env,
@@ -455,7 +489,8 @@ Example:
 Train: ${trainNumber}
 
 Error: ${
-        error.message || "Unknown error"
+        error.message ||
+        "Unknown error"
       }`
     );
   }
