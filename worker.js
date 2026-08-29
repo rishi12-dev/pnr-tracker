@@ -1,24 +1,26 @@
-```javascript
 import {
   configure,
   checkPNRStatus,
-  trackTrain
+  trackTrain,
 } from "railkit";
 
+
 async function sendTelegram(env, chatId, text) {
-  const response = await fetch(
-    `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        chat_id: String(chatId),
-        text,
-      }),
-    }
-  );
+  const url =
+    "https://api.telegram.org/bot" +
+    env.TELEGRAM_BOT_TOKEN +
+    "/sendMessage";
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      chat_id: String(chatId),
+      text: String(text),
+    }),
+  });
 
   const result = await response.text();
 
@@ -26,20 +28,26 @@ async function sendTelegram(env, chatId, text) {
 
   if (!response.ok) {
     throw new Error(
-      `Telegram API error ${response.status}: ${result}`
+      "Telegram API error " +
+        response.status +
+        ": " +
+        result
     );
   }
 
   return result;
 }
 
+
 function isValidPNR(pnr) {
   return /^\d{10}$/.test(pnr);
 }
 
+
 function isValidTrainNumber(trainNumber) {
   return /^\d{5}$/.test(trainNumber);
 }
+
 
 function getCommand(text) {
   const parts = text.trim().split(/\s+/);
@@ -49,6 +57,7 @@ function getCommand(text) {
     argument: parts[1] || "",
   };
 }
+
 
 async function saveUser(env, chatId, username) {
   await env.DB.prepare(`
@@ -60,6 +69,7 @@ async function saveUser(env, chatId, username) {
     .bind(chatId, username || "")
     .run();
 }
+
 
 async function handleStart(env, chatId) {
   await sendTelegram(
@@ -87,6 +97,7 @@ Commands:
 You can add multiple PNRs.`
   );
 }
+
 
 async function handleAdd(env, chatId, pnr) {
   if (!isValidPNR(pnr)) {
@@ -120,6 +131,7 @@ to check the live status.`
   );
 }
 
+
 async function handleList(env, chatId) {
   const result = await env.DB.prepare(`
     SELECT pnr, last_status
@@ -143,11 +155,18 @@ async function handleList(env, chatId) {
 
   for (const row of result.results) {
     message += `🎫 ${row.pnr}\n`;
-    message += `Status: ${row.last_status || "Not checked yet"}\n\n`;
+    message += `Status: ${
+      row.last_status || "Not checked yet"
+    }\n\n`;
   }
 
-  await sendTelegram(env, chatId, message);
+  await sendTelegram(
+    env,
+    chatId,
+    message
+  );
 }
+
 
 async function handleRemove(env, chatId, pnr) {
   if (!isValidPNR(pnr)) {
@@ -182,6 +201,7 @@ async function handleRemove(env, chatId, pnr) {
   );
 }
 
+
 async function handleCheck(env, chatId, pnr) {
   if (!isValidPNR(pnr)) {
     await sendTelegram(
@@ -203,33 +223,40 @@ async function handleCheck(env, chatId, pnr) {
 
     const result = await checkPNRStatus(pnr);
 
-    if (!result?.success) {
-      throw new Error(
-        result?.error || "PNR check failed"
-      );
-    }
+    const data =
+      result?.data || result || {};
 
-    const data = result.data || {};
+    const train =
+      data.train || {};
 
-    const train = data.train || {};
-    const journey = data.journey || {};
-    const passengers = data.passengers || [];
+    const journey =
+      data.journey || {};
+
+    const passengers =
+      data.passengers || [];
 
     let passengerText = "";
 
-    passengers.forEach((passenger, index) => {
-      const current = passenger?.current || {};
+    passengers.forEach(
+      (passenger, index) => {
+        const current =
+          passenger?.current || {};
 
-      passengerText +=
-        `\nPassenger ${index + 1}: ` +
-        `${current.details || current.status || "-"}\n`;
-    });
+        passengerText +=
+          `\nPassenger ${index + 1}: ` +
+          `${current.details || current.status || "-"}\n`;
+      }
+    );
 
     const message =
       `🚆 PNR STATUS\n\n` +
       `PNR: ${pnr}\n` +
-      `Train: ${train.number || "-"} ${train.name || ""}\n` +
-      `Journey Date: ${journey.dateOfJourney || "-"}\n` +
+      `Train: ${train.number || "-"} ${
+        train.name || ""
+      }\n` +
+      `Journey Date: ${
+        journey.dateOfJourney || "-"
+      }\n` +
       passengerText;
 
     await sendTelegram(
@@ -268,7 +295,10 @@ async function handleCheck(env, chatId, pnr) {
       .run();
 
   } catch (error) {
-    console.error("RailKit PNR error:", error);
+    console.error(
+      "RailKit PNR error:",
+      error
+    );
 
     await sendTelegram(
       env,
@@ -277,17 +307,29 @@ async function handleCheck(env, chatId, pnr) {
 
 Please try again later.
 
-Error: ${error.message || "Unknown error"}`
+Error: ${
+        error.message || "Unknown error"
+      }`
     );
   }
 }
 
-async function handleTrain(env, chatId, trainNumber) {
+
+async function handleTrain(
+  env,
+  chatId,
+  trainNumber
+) {
   if (!isValidTrainNumber(trainNumber)) {
     await sendTelegram(
       env,
       chatId,
-      "❌ Invalid train number.\n\nTrain number must contain exactly 5 digits.\n\nExample:\n/train 12522"
+      `❌ Invalid train number.
+
+Train number must contain exactly 5 digits.
+
+Example:
+/train 12522`
     );
     return;
   }
@@ -301,68 +343,96 @@ async function handleTrain(env, chatId, trainNumber) {
   try {
     configure(env.RAILKIT_API_KEY);
 
-    const result = await trackTrain(trainNumber);
+    const result =
+      await trackTrain(trainNumber);
 
-    if (!result?.success) {
-      throw new Error(
-        result?.error || "Train status check failed"
-      );
-    }
+    console.log(
+      "RailKit train response:",
+      JSON.stringify(result)
+    );
 
-    const data = result.data || {};
+    const data =
+      result?.data || result || {};
+
+    const train =
+      data.train || {};
 
     const trainNo =
-      data.trainNo || trainNumber;
+      train.number ||
+      data.trainNumber ||
+      data.trainNo ||
+      trainNumber;
 
     const trainName =
-      data.trainName || "Unknown Train";
+      train.name ||
+      data.trainName ||
+      "Unknown Train";
 
-    const statusNote =
-      data.statusNote || "Status unavailable";
+    const status =
+      data.status ||
+      data.statusNote ||
+      data.note ||
+      "Status unavailable";
 
-    const currentStationCode =
-      data.currentStationCode || "-";
+    const currentStation =
+      data.currentStation ||
+      data.currentStationName ||
+      data.current ||
+      "-";
 
-    const lastUpdate =
-      data.lastUpdate || "-";
+    const nextStation =
+      data.nextStation ||
+      data.nextStationName ||
+      "-";
 
-    const timeline =
-      Array.isArray(data.timeline)
-        ? data.timeline
-        : [];
-
-    const current =
-      timeline.find(
-        (point) => point.status === "current"
-      );
-
-    const upcoming =
-      timeline.find(
-        (point) => point.status === "upcoming"
-      );
+    const delay =
+      data.delay ??
+      data.delayMinutes ??
+      "-";
 
     let message =
       `🚆 LIVE TRAIN STATUS\n\n` +
       `Train: ${trainNo} ${trainName}\n\n` +
-      `📍 Status:\n${statusNote}\n\n` +
-      `📌 Current Station: ` +
-      `${current?.stationName || currentStationCode || "-"}\n` +
-      `🔄 Station Code: ${currentStationCode}\n`;
+      `📍 Status: ${status}\n` +
+      `📌 Current: ${currentStation}\n` +
+      `➡️ Next: ${nextStation}\n` +
+      `⏱️ Delay: ${delay}\n`;
 
-    if (upcoming) {
-      message +=
-        `\n➡️ Next Station: ` +
-        `${upcoming.stationName || "-"} ` +
-        `(${upcoming.stationCode || "-"})\n`;
-    }
+    if (Array.isArray(data.timeline)) {
+      const timeline =
+        data.timeline;
 
-    message +=
-      `\n🕐 Last Update: ${lastUpdate}\n`;
+      const current =
+        timeline.find(
+          (item) =>
+            item?.status === "current"
+        );
 
-    if (current) {
-      message +=
-        `\n📍 Current Stop Status: ` +
-        `${current.status || "-"}\n`;
+      const upcoming =
+        timeline.find(
+          (item) =>
+            item?.status === "upcoming"
+        );
+
+      if (current) {
+        message +=
+          `\n📍 Current Station: ${
+            current.stationName ||
+            current.station ||
+            current.stationCode ||
+            "-"
+          }\n`;
+      }
+
+      if (upcoming) {
+        message +=
+          `➡️ Next Station: ${
+            upcoming.stationName ||
+            upcoming.station ||
+            upcoming.stationCode ||
+            "-"
+          }\n`;
+      }
     }
 
     await sendTelegram(
@@ -372,7 +442,10 @@ async function handleTrain(env, chatId, trainNumber) {
     );
 
   } catch (error) {
-    console.error("RailKit Train error:", error);
+    console.error(
+      "RailKit Train error:",
+      error
+    );
 
     await sendTelegram(
       env,
@@ -381,21 +454,33 @@ async function handleTrain(env, chatId, trainNumber) {
 
 Train: ${trainNumber}
 
-Error: ${error.message || "Unknown error"}`
+Error: ${
+        error.message || "Unknown error"
+      }`
     );
   }
 }
 
-async function handleUpdate(update, env) {
-  const message = update?.message;
+
+async function handleUpdate(
+  update,
+  env
+) {
+  const message =
+    update?.message;
 
   if (!message?.chat) {
     return;
   }
 
-  const chatId = String(message.chat.id);
-  const username = message.from?.username || "";
-  const text = message.text || "";
+  const chatId =
+    String(message.chat.id);
+
+  const username =
+    message.from?.username || "";
+
+  const text =
+    message.text || "";
 
   await saveUser(
     env,
@@ -465,9 +550,13 @@ async function handleUpdate(update, env) {
   }
 }
 
+
 export default {
 
-  async fetch(request, env) {
+  async fetch(
+    request,
+    env
+  ) {
 
     if (request.method !== "POST") {
       return new Response(
@@ -503,7 +592,10 @@ export default {
       );
 
       return new Response(
-        `Worker error: ${error.message || "Unknown error"}`,
+        `Worker error: ${
+          error.message ||
+          "Unknown error"
+        }`,
         {
           status: 500
         }
@@ -511,4 +603,3 @@ export default {
     }
   },
 };
-```
