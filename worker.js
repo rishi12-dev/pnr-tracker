@@ -344,18 +344,41 @@ Example:
   try {
     configure(env.RAILKIT_API_KEY);
 
-    const result =
-      await trackTrain(trainNumber);
+    // Current date in DD-MM-YYYY format
+    const now = new Date();
 
-    if (!result?.success) {
-      throw new Error(
-        result?.error ||
-        "Train status unavailable"
+    const day =
+      String(now.getUTCDate())
+        .padStart(2, "0");
+
+    const month =
+      String(now.getUTCMonth() + 1)
+        .padStart(2, "0");
+
+    const year =
+      now.getUTCFullYear();
+
+    const journeyDate =
+      `${day}-${month}-${year}`;
+
+    console.log(
+      "RailKit train date:",
+      journeyDate
+    );
+
+    const result =
+      await trackTrain(
+        trainNumber,
+        journeyDate
       );
-    }
+
+    console.log(
+      "RailKit train response:",
+      JSON.stringify(result)
+    );
 
     const data =
-      result.data || {};
+      result?.data || result || {};
 
     const trainNo =
       data.trainNo ||
@@ -382,34 +405,32 @@ Example:
         ? data.timeline
         : [];
 
-    const currentStation =
-      timeline.find(
-        (point) =>
-          point?.status === "current"
-      );
-
-    const nextStationIndex =
+    const currentIndex =
       timeline.findIndex(
-        (point) =>
-          point?.status === "current"
+        (station) =>
+          station?.status === "current"
       );
 
-    let nextStation = null;
+    const currentStation =
+      currentIndex >= 0
+        ? timeline[currentIndex]
+        : null;
 
-    if (nextStationIndex >= 0) {
-      nextStation =
-        timeline
-          .slice(nextStationIndex + 1)
-          .find(
-            (point) =>
-              point?.status === "upcoming"
-          );
-    }
+    const nextStation =
+      currentIndex >= 0
+        ? timeline
+            .slice(currentIndex + 1)
+            .find(
+              (station) =>
+                station?.status === "upcoming"
+            )
+        : null;
 
     let message =
       `🚆 LIVE TRAIN STATUS\n\n` +
       `Train: ${trainNo} ${trainName}\n\n` +
-      `📍 Status:\n${statusNote}\n\n` +
+      `📅 Journey Date: ${journeyDate}\n` +
+      `📍 Status: ${statusNote}\n` +
       `📌 Current Station: ${
         currentStation?.stationName ||
         currentStationCode ||
@@ -426,43 +447,45 @@ Example:
         `➡️ Next Station: ${
           nextStation.stationName ||
           "-"
-        } (${
-          nextStation.stationCode ||
-          "-"
-        })\n`;
+        }`;
+
+      if (nextStation.stationCode) {
+        message +=
+          ` (${nextStation.stationCode})`;
+      }
+
+      message += "\n";
     }
 
-    if (
-      currentStation?.type === "stoppage"
-    ) {
+    if (currentStation) {
       const arrival =
         currentStation.arrival || {};
 
       const departure =
         currentStation.departure || {};
 
-      message +=
-        `\n🕐 Arrival: ${
-          arrival.actual ||
-          arrival.scheduled ||
-          "-"
-        }`;
-
-      if (arrival.delay) {
+      if (
+        arrival.actual ||
+        arrival.scheduled
+      ) {
         message +=
-          ` (${arrival.delay})`;
+          `\n🕐 Arrival: ${
+            arrival.actual ||
+            arrival.scheduled ||
+            "-"
+          }`;
       }
 
-      message +=
-        `\n🚉 Departure: ${
-          departure.actual ||
-          departure.scheduled ||
-          "-"
-        }`;
-
-      if (departure.delay) {
+      if (
+        departure.actual ||
+        departure.scheduled
+      ) {
         message +=
-          ` (${departure.delay})`;
+          `\n🚉 Departure: ${
+            departure.actual ||
+            departure.scheduled ||
+            "-"
+          }`;
       }
     }
 
