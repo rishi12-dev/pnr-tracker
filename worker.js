@@ -1,4 +1,9 @@
-import { configure, checkPNRStatus } from "railkit";
+```javascript
+import {
+  configure,
+  checkPNRStatus,
+  trackTrain
+} from "railkit";
 
 async function sendTelegram(env, chatId, text) {
   const response = await fetch(
@@ -10,7 +15,7 @@ async function sendTelegram(env, chatId, text) {
       },
       body: JSON.stringify({
         chat_id: String(chatId),
-        text: text,
+        text,
       }),
     }
   );
@@ -30,6 +35,10 @@ async function sendTelegram(env, chatId, text) {
 
 function isValidPNR(pnr) {
   return /^\d{10}$/.test(pnr);
+}
+
+function isValidTrainNumber(trainNumber) {
+  return /^\d{5}$/.test(trainNumber);
 }
 
 function getCommand(text) {
@@ -65,6 +74,9 @@ Commands:
 
 /check 1234567890
 🔎 Check live PNR status
+
+/train 12522
+🚂 Check live train status
 
 /list
 📋 Show your saved PNRs
@@ -191,11 +203,17 @@ async function handleCheck(env, chatId, pnr) {
 
     const result = await checkPNRStatus(pnr);
 
-    const data = result?.data || result;
+    if (!result?.success) {
+      throw new Error(
+        result?.error || "PNR check failed"
+      );
+    }
 
-    const train = data?.train || {};
-    const journey = data?.journey || {};
-    const passengers = data?.passengers || [];
+    const data = result.data || {};
+
+    const train = data.train || {};
+    const journey = data.journey || {};
+    const passengers = data.passengers || [];
 
     let passengerText = "";
 
@@ -250,7 +268,7 @@ async function handleCheck(env, chatId, pnr) {
       .run();
 
   } catch (error) {
-    console.error("RailKit error:", error);
+    console.error("RailKit PNR error:", error);
 
     await sendTelegram(
       env,
@@ -258,6 +276,110 @@ async function handleCheck(env, chatId, pnr) {
       `❌ PNR check failed.
 
 Please try again later.
+
+Error: ${error.message || "Unknown error"}`
+    );
+  }
+}
+
+async function handleTrain(env, chatId, trainNumber) {
+  if (!isValidTrainNumber(trainNumber)) {
+    await sendTelegram(
+      env,
+      chatId,
+      "❌ Invalid train number.\n\nTrain number must contain exactly 5 digits.\n\nExample:\n/train 12522"
+    );
+    return;
+  }
+
+  await sendTelegram(
+    env,
+    chatId,
+    `🔎 Checking live status of train ${trainNumber}...`
+  );
+
+  try {
+    configure(env.RAILKIT_API_KEY);
+
+    const result = await trackTrain(trainNumber);
+
+    if (!result?.success) {
+      throw new Error(
+        result?.error || "Train status check failed"
+      );
+    }
+
+    const data = result.data || {};
+
+    const trainNo =
+      data.trainNo || trainNumber;
+
+    const trainName =
+      data.trainName || "Unknown Train";
+
+    const statusNote =
+      data.statusNote || "Status unavailable";
+
+    const currentStationCode =
+      data.currentStationCode || "-";
+
+    const lastUpdate =
+      data.lastUpdate || "-";
+
+    const timeline =
+      Array.isArray(data.timeline)
+        ? data.timeline
+        : [];
+
+    const current =
+      timeline.find(
+        (point) => point.status === "current"
+      );
+
+    const upcoming =
+      timeline.find(
+        (point) => point.status === "upcoming"
+      );
+
+    let message =
+      `🚆 LIVE TRAIN STATUS\n\n` +
+      `Train: ${trainNo} ${trainName}\n\n` +
+      `📍 Status:\n${statusNote}\n\n` +
+      `📌 Current Station: ` +
+      `${current?.stationName || currentStationCode || "-"}\n` +
+      `🔄 Station Code: ${currentStationCode}\n`;
+
+    if (upcoming) {
+      message +=
+        `\n➡️ Next Station: ` +
+        `${upcoming.stationName || "-"} ` +
+        `(${upcoming.stationCode || "-"})\n`;
+    }
+
+    message +=
+      `\n🕐 Last Update: ${lastUpdate}\n`;
+
+    if (current) {
+      message +=
+        `\n📍 Current Stop Status: ` +
+        `${current.status || "-"}\n`;
+    }
+
+    await sendTelegram(
+      env,
+      chatId,
+      message
+    );
+
+  } catch (error) {
+    console.error("RailKit Train error:", error);
+
+    await sendTelegram(
+      env,
+      chatId,
+      `❌ Train status check failed.
+
+Train: ${trainNumber}
 
 Error: ${error.message || "Unknown error"}`
     );
@@ -311,6 +433,14 @@ async function handleUpdate(update, env) {
       );
       break;
 
+    case "/train":
+      await handleTrain(
+        env,
+        chatId,
+        argument
+      );
+      break;
+
     case "/list":
       await handleList(
         env,
@@ -350,7 +480,8 @@ export default {
 
     try {
 
-      const update = await request.json();
+      const update =
+        await request.json();
 
       await handleUpdate(
         update,
@@ -380,3 +511,4 @@ export default {
     }
   },
 };
+```
