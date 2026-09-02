@@ -5,26 +5,44 @@ import {
 } from "railkit";
 
 
-async function sendTelegram(env, chatId, text) {
+/* =========================
+   TELEGRAM HELPERS
+========================= */
+
+async function sendTelegram(
+  env,
+  chatId,
+  text,
+  replyMarkup = null
+) {
   const url =
     "https://api.telegram.org/bot" +
     env.TELEGRAM_BOT_TOKEN +
     "/sendMessage";
+
+  const body = {
+    chat_id: String(chatId),
+    text: String(text),
+  };
+
+  if (replyMarkup) {
+    body.reply_markup = replyMarkup;
+  }
 
   const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      chat_id: String(chatId),
-      text: String(text),
-    }),
+    body: JSON.stringify(body),
   });
 
   const result = await response.text();
 
-  console.log("Telegram response:", result);
+  console.log(
+    "Telegram response:",
+    result
+  );
 
   if (!response.ok) {
     throw new Error(
@@ -39,22 +57,99 @@ async function sendTelegram(env, chatId, text) {
 }
 
 
+async function editTelegramMessage(
+  env,
+  chatId,
+  messageId,
+  text,
+  replyMarkup = null
+) {
+  const url =
+    "https://api.telegram.org/bot" +
+    env.TELEGRAM_BOT_TOKEN +
+    "/editMessageText";
+
+  const body = {
+    chat_id: String(chatId),
+    message_id: Number(messageId),
+    text: String(text),
+  };
+
+  if (replyMarkup) {
+    body.reply_markup = replyMarkup;
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const result = await response.text();
+
+  if (!response.ok) {
+    throw new Error(
+      "Telegram editMessageText error " +
+        response.status +
+        ": " +
+        result
+    );
+  }
+
+  return result;
+}
+
+
+async function answerCallbackQuery(
+  env,
+  callbackQueryId
+) {
+  const url =
+    "https://api.telegram.org/bot" +
+    env.TELEGRAM_BOT_TOKEN +
+    "/answerCallbackQuery";
+
+  await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      callback_query_id:
+        callbackQueryId,
+    }),
+  });
+}
+
+
+/* =========================
+   VALIDATION
+========================= */
+
 function isValidPNR(pnr) {
   return /^\d{10}$/.test(pnr);
 }
 
 
-function isValidTrainNumber(trainNumber) {
+function isValidTrainNumber(
+  trainNumber
+) {
   return /^\d{5}$/.test(trainNumber);
 }
 
 
 function getCommand(text) {
-  const parts = text.trim().split(/\s+/);
+  const parts =
+    text.trim().split(/\s+/);
 
   return {
-    command: (parts[0] || "").toLowerCase(),
-    argument: parts[1] || "",
+    command:
+      (parts[0] || "").toLowerCase(),
+
+    argument:
+      parts[1] || "",
   };
 }
 
@@ -65,51 +160,65 @@ function getCommand(text) {
 
 function getIndiaNow() {
   return new Date(
-    new Date().toLocaleString("en-US", {
-      timeZone: "Asia/Kolkata",
-    })
+    new Date().toLocaleString(
+      "en-US",
+      {
+        timeZone: "Asia/Kolkata",
+      }
+    )
   );
 }
 
 
 function getIndiaDate() {
-  const now = getIndiaNow();
+  const now =
+    getIndiaNow();
 
-  const day = String(
-    now.getDate()
-  ).padStart(2, "0");
+  const day =
+    String(
+      now.getDate()
+    ).padStart(2, "0");
 
-  const month = String(
-    now.getMonth() + 1
-  ).padStart(2, "0");
+  const month =
+    String(
+      now.getMonth() + 1
+    ).padStart(2, "0");
 
-  const year = now.getFullYear();
+  const year =
+    now.getFullYear();
 
   return `${day}-${month}-${year}`;
 }
 
 
-function parseTimeToMinutes(timeValue) {
+function parseTimeToMinutes(
+  timeValue
+) {
   if (!timeValue) {
     return null;
   }
 
-  const text = String(timeValue).trim();
+  const text =
+    String(timeValue).trim();
 
   if (!text) {
     return null;
   }
 
-  const match = text.match(
-    /(\d{1,2}):(\d{2})/
-  );
+  const match =
+    text.match(
+      /(\d{1,2}):(\d{2})/
+    );
 
   if (!match) {
     return null;
   }
 
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
+  const hours =
+    Number(match[1]);
+
+  const minutes =
+    Number(match[2]);
 
   if (
     hours < 0 ||
@@ -127,7 +236,9 @@ function parseTimeToMinutes(timeValue) {
 }
 
 
-function parseDelayMinutes(delayValue) {
+function parseDelayMinutes(
+  delayValue
+) {
   if (
     delayValue === null ||
     delayValue === undefined
@@ -145,12 +256,15 @@ function parseDelayMinutes(delayValue) {
     return 0;
   }
 
-  return Number(match[0]) || 0;
+  return (
+    Number(match[0]) || 0
+  );
 }
 
 
 function getCurrentIndiaMinutes() {
-  const now = getIndiaNow();
+  const now =
+    getIndiaNow();
 
   return (
     now.getHours() * 60 +
@@ -170,10 +284,14 @@ async function saveUser(
   username
 ) {
   await env.DB.prepare(`
-    INSERT INTO users (telegram_id, username)
+    INSERT INTO users (
+      telegram_id,
+      username
+    )
     VALUES (?, ?)
     ON CONFLICT(telegram_id)
-    DO UPDATE SET username = excluded.username
+    DO UPDATE SET
+      username = excluded.username
   `)
     .bind(
       chatId,
@@ -183,43 +301,318 @@ async function saveUser(
 }
 
 
+async function getUserCount(env) {
+  const result =
+    await env.DB.prepare(`
+      SELECT COUNT(*) AS total
+      FROM users
+    `)
+      .first();
+
+  return Number(
+    result?.total || 0
+  );
+}
+
+
 /* =========================
-   START
+   PHASE 1 UI
 ========================= */
 
-async function handleStart(
+function mainMenuKeyboard() {
+  return {
+    inline_keyboard: [
+      [
+        {
+          text: "🎫 PNR Status",
+          callback_data:
+            "pnr_menu",
+        },
+        {
+          text: "🚂 Train Status",
+          callback_data:
+            "train_menu",
+        },
+      ],
+
+      [
+        {
+          text: "🔍 Search Trains",
+          callback_data:
+            "search_menu",
+        },
+        {
+          text: "💺 Availability",
+          callback_data:
+            "availability_menu",
+        },
+      ],
+
+      [
+        {
+          text: "💰 Fare Enquiry",
+          callback_data:
+            "fare_menu",
+        },
+        {
+          text: "🚉 Station Info",
+          callback_data:
+            "station_menu",
+        },
+      ],
+
+      [
+        {
+          text: "🔔 My Alerts",
+          callback_data:
+            "alerts_menu",
+        },
+        {
+          text: "📋 My PNRs",
+          callback_data:
+            "pnr_list",
+        },
+      ],
+
+      [
+        {
+          text: "ℹ️ Help",
+          callback_data:
+            "help_menu",
+        },
+      ],
+    ],
+  };
+}
+
+
+function backButton() {
+  return {
+    inline_keyboard: [
+      [
+        {
+          text:
+            "⬅️ Back to Main Menu",
+          callback_data:
+            "main_menu",
+        },
+      ],
+    ],
+  };
+}
+
+
+function pnrMenuKeyboard() {
+  return {
+    inline_keyboard: [
+      [
+        {
+          text: "➕ Add PNR",
+          callback_data:
+            "pnr_add",
+        },
+        {
+          text: "🔎 Check PNR",
+          callback_data:
+            "pnr_check",
+        },
+      ],
+
+      [
+        {
+          text: "📋 My PNRs",
+          callback_data:
+            "pnr_list",
+        },
+        {
+          text: "🗑️ Remove PNR",
+          callback_data:
+            "pnr_remove",
+        },
+      ],
+
+      [
+        {
+          text: "⬅️ Back",
+          callback_data:
+            "main_menu",
+        },
+      ],
+    ],
+  };
+}
+
+
+function trainMenuKeyboard() {
+  return {
+    inline_keyboard: [
+      [
+        {
+          text:
+            "📍 Live Train Status",
+          callback_data:
+            "train_live",
+        },
+      ],
+
+      [
+        {
+          text: "⬅️ Back",
+          callback_data:
+            "main_menu",
+        },
+      ],
+    ],
+  };
+}
+
+
+/* =========================
+   MAIN MENU
+========================= */
+
+async function showMainMenu(
   env,
-  chatId
+  chatId,
+  messageId = null
 ) {
-  await sendTelegram(
+  const userCount =
+    await getUserCount(env);
+
+  const text =
+    `🚆 RAILWAY ASSISTANT\n\n` +
+    `Your smart railway companion 🇮🇳\n\n` +
+    `👥 ${userCount.toLocaleString("en-IN")} passengers are using this bot\n\n` +
+    `What would you like to do?`;
+
+  if (messageId) {
+    await editTelegramMessage(
+      env,
+      chatId,
+      messageId,
+      text,
+      mainMenuKeyboard()
+    );
+  } else {
+    await sendTelegram(
+      env,
+      chatId,
+      text,
+      mainMenuKeyboard()
+    );
+  }
+}
+
+
+/* =========================
+   PNR MENU
+========================= */
+
+async function showPNRMenu(
+  env,
+  chatId,
+  messageId
+) {
+  await editTelegramMessage(
     env,
     chatId,
-    `🚆 Welcome to PNR Tracker!
+    messageId,
 
-Commands:
+    `🎫 PNR STATUS\n\n` +
+      `Manage and check your railway PNR.\n\n` +
+      `Choose an option below:`,
 
-/add 1234567890
-➕ Add a PNR
+    pnrMenuKeyboard()
+  );
+}
 
-/check 1234567890
-🔎 Check live PNR status
 
-/train 12522
-🚂 Check live train status
+/* =========================
+   TRAIN MENU
+========================= */
 
-/alert 12522
-🔔 Get alert 15 minutes before destination
+async function showTrainMenu(
+  env,
+  chatId,
+  messageId
+) {
+  await editTelegramMessage(
+    env,
+    chatId,
+    messageId,
 
-/list
-📋 Show your saved PNRs
+    `🚂 TRAIN STATUS\n\n` +
+      `Check live running status of any train.\n\n` +
+      `Choose an option below:`,
 
-/remove 1234567890
-🗑️ Remove a PNR
+    trainMenuKeyboard()
+  );
+}
 
-/cancelalert
-❌ Cancel pending destination setup
 
-You can add multiple PNRs and train alerts.`
+/* =========================
+   COMING SOON
+========================= */
+
+async function showComingSoon(
+  env,
+  chatId,
+  messageId,
+  title
+) {
+  await editTelegramMessage(
+    env,
+    chatId,
+    messageId,
+
+    `${title}\n\n` +
+      `🚧 This feature is coming soon.\n\n` +
+      `We're building the next-generation Railway Assistant for you. 🚆`,
+
+    backButton()
+  );
+}
+
+
+/* =========================
+   HELP
+========================= */
+
+async function showHelpMenu(
+  env,
+  chatId,
+  messageId
+) {
+  await editTelegramMessage(
+    env,
+    chatId,
+    messageId,
+
+    `ℹ️ HELP\n\n` +
+
+      `🎫 PNR Status\n` +
+      `Check your live PNR status.\n\n` +
+
+      `🚂 Train Status\n` +
+      `Track a train's live movement.\n\n` +
+
+      `🔔 My Alerts\n` +
+      `Manage your train arrival alerts.\n\n` +
+
+      `📋 My PNRs\n` +
+      `View your saved PNRs.\n\n` +
+
+      `Existing commands:\n\n` +
+
+      `/add 1234567890\n` +
+      `/check 1234567890\n` +
+      `/train 12522\n` +
+      `/alert 12522\n` +
+      `/list\n` +
+      `/remove 1234567890\n` +
+      `/cancelalert`,
+
+    backButton()
   );
 }
 
@@ -237,8 +630,11 @@ async function handleAdd(
     await sendTelegram(
       env,
       chatId,
-      "❌ Invalid PNR.\n\nPNR must contain exactly 10 digits."
+
+      "❌ Invalid PNR.\n\n" +
+        "PNR must contain exactly 10 digits."
     );
+
     return;
   }
 
@@ -260,13 +656,14 @@ async function handleAdd(
   await sendTelegram(
     env,
     chatId,
-    `✅ PNR ${pnr} added successfully.
 
-Now use:
+    `✅ PNR ${pnr} added successfully.\n\n` +
 
-/check ${pnr}
+      `Now use:\n\n` +
 
-to check the live status.`
+      `/check ${pnr}\n\n` +
+
+      `to check the live status.`
   );
 }
 
@@ -298,8 +695,10 @@ async function handleList(
     await sendTelegram(
       env,
       chatId,
+
       "📭 You haven't added any PNR yet."
     );
+
     return;
   }
 
@@ -328,6 +727,70 @@ async function handleList(
 
 
 /* =========================
+   PNR LIST UI
+========================= */
+
+async function showPNRListUI(
+  env,
+  chatId,
+  messageId
+) {
+  const result =
+    await env.DB.prepare(`
+      SELECT
+        pnr,
+        last_status
+      FROM pnrs
+      WHERE telegram_id = ?
+      ORDER BY created_at DESC
+    `)
+      .bind(chatId)
+      .all();
+
+  let text =
+    `📋 MY PNRs\n\n`;
+
+  if (
+    !result.results ||
+    result.results.length === 0
+  ) {
+    text +=
+      `📭 You haven't added any PNR yet.\n\n` +
+      `Use /add 1234567890 to add one.`;
+
+    await editTelegramMessage(
+      env,
+      chatId,
+      messageId,
+      text,
+      backButton()
+    );
+
+    return;
+  }
+
+  for (
+    const row of result.results
+  ) {
+    text +=
+      `🎫 ${row.pnr}\n` +
+      `Status: ${
+        row.last_status ||
+        "Not checked yet"
+      }\n\n`;
+  }
+
+  await editTelegramMessage(
+    env,
+    chatId,
+    messageId,
+    text,
+    backButton()
+  );
+}
+
+
+/* =========================
    PNR REMOVE
 ========================= */
 
@@ -340,8 +803,10 @@ async function handleRemove(
     await sendTelegram(
       env,
       chatId,
+
       "❌ Please enter a valid 10-digit PNR."
     );
+
     return;
   }
 
@@ -363,14 +828,17 @@ async function handleRemove(
     await sendTelegram(
       env,
       chatId,
+
       `❌ PNR ${pnr} was not found in your list.`
     );
+
     return;
   }
 
   await sendTelegram(
     env,
     chatId,
+
     `🗑️ PNR ${pnr} removed successfully.`
   );
 }
@@ -389,18 +857,22 @@ async function handleCheck(
     await sendTelegram(
       env,
       chatId,
+
       "❌ Please enter a valid 10-digit PNR."
     );
+
     return;
   }
 
   await sendTelegram(
     env,
     chatId,
+
     `🔎 Checking PNR ${pnr}...`
   );
 
   try {
+
     configure(
       env.RAILKIT_API_KEY
     );
@@ -422,10 +894,12 @@ async function handleCheck(
     const passengers =
       data.passengers || [];
 
-    let passengerText = "";
+    let passengerText =
+      "";
 
     passengers.forEach(
       (passenger, index) => {
+
         const current =
           passenger?.current ||
           {};
@@ -442,16 +916,20 @@ async function handleCheck(
 
     const message =
       `🚆 PNR STATUS\n\n` +
+
       `PNR: ${pnr}\n` +
+
       `Train: ${
         train.number || "-"
       } ${
         train.name || ""
       }\n` +
+
       `Journey Date: ${
         journey.dateOfJourney ||
         "-"
       }\n` +
+
       passengerText;
 
     await sendTelegram(
@@ -488,13 +966,15 @@ async function handleCheck(
         statusText,
         train.number || "",
         train.name || "",
-        journey.dateOfJourney || "",
+        journey.dateOfJourney ||
+          "",
         chatId,
         pnr
       )
       .run();
 
   } catch (error) {
+
     console.error(
       "RailKit PNR error:",
       error
@@ -503,14 +983,15 @@ async function handleCheck(
     await sendTelegram(
       env,
       chatId,
-      `❌ PNR check failed.
 
-Please try again later.
+      `❌ PNR check failed.\n\n` +
 
-Error: ${
-        error.message ||
-        "Unknown error"
-      }`
+        `Please try again later.\n\n` +
+
+        `Error: ${
+          error.message ||
+          "Unknown error"
+        }`
     );
   }
 }
@@ -540,7 +1021,7 @@ async function getTrainStatus(
   if (!result?.success) {
     throw new Error(
       result?.error ||
-      "Train status unavailable"
+        "Train status unavailable"
     );
   }
 
@@ -561,23 +1042,27 @@ async function handleTrain(
     await sendTelegram(
       env,
       chatId,
-      `❌ Invalid train number.
 
-Train number must contain exactly 5 digits.
+      `❌ Invalid train number.\n\n` +
 
-Example:
-/train 12522`
+        `Train number must contain exactly 5 digits.\n\n` +
+
+        `Example:\n` +
+        `/train 12522`
     );
+
     return;
   }
 
   await sendTelegram(
     env,
     chatId,
+
     `🔎 Checking live status of train ${trainNumber}...`
   );
 
   try {
+
     const data =
       await getTrainStatus(
         env,
@@ -620,7 +1105,9 @@ Example:
 
     const currentStation =
       currentIndex >= 0
-        ? timeline[currentIndex]
+        ? timeline[
+            currentIndex
+          ]
         : null;
 
     const nextStation =
@@ -642,13 +1129,17 @@ Example:
 
     let message =
       `🚆 LIVE TRAIN STATUS\n\n` +
+
       `Train: ${trainNo} ${trainName}\n\n` +
+
       `📍 Status: ${statusNote}\n` +
+
       `📌 Current Station: ${
         currentStation?.stationName ||
         currentStationCode ||
         "-"
       }\n` +
+
       `🔢 Station Code: ${
         currentStation?.stationCode ||
         currentStationCode ||
@@ -656,6 +1147,7 @@ Example:
       }\n`;
 
     if (nextStation) {
+
       message +=
         `➡️ Next Station: ${
           nextStation.stationName ||
@@ -682,6 +1174,7 @@ Example:
     );
 
   } catch (error) {
+
     console.error(
       "RailKit Train error:",
       error
@@ -690,19 +1183,18 @@ Example:
     await sendTelegram(
       env,
       chatId,
-      `❌ Train status check failed.
 
-Train: ${trainNumber}
+      `❌ Train status check failed.\n\n` +
 
-Error: ${
-        error.message ||
-        "Unknown error"
-      }`
+        `Train: ${trainNumber}\n\n` +
+
+        `Error: ${
+          error.message ||
+          "Unknown error"
+        }`
     );
   }
 }
-
-
 /* =========================
    ALERT - START
 ========================= */
@@ -720,11 +1212,12 @@ async function handleAlert(
     await sendTelegram(
       env,
       chatId,
-      `❌ Invalid train number.
 
-Example:
-/alert 12522`
+      `❌ Invalid train number.\n\n` +
+        `Example:\n` +
+        `/alert 12522`
     );
+
     return;
   }
 
@@ -747,10 +1240,11 @@ Example:
     await sendTelegram(
       env,
       chatId,
-      `⚠️ You already have an active alert for train ${trainNumber}.
 
-Send /cancelalert if you want to cancel it.`
+      `⚠️ You already have an active alert for train ${trainNumber}.\n\n` +
+        `Send /cancelalert if you want to cancel it.`
     );
+
     return;
   }
 
@@ -776,15 +1270,16 @@ Send /cancelalert if you want to cancel it.`
   await sendTelegram(
     env,
     chatId,
-    `🚆 Train ${trainNumber} selected.
 
-📍 Now send your destination station.
+    `🚆 Train ${trainNumber} selected.\n\n` +
 
-Example:
-Kanpur Central
+      `📍 Now send your destination station.\n\n` +
 
-You can also send the station code:
-CNB`
+      `Example:\n` +
+      `Kanpur Central\n\n` +
+
+      `You can also send the station code:\n` +
+      `CNB`
   );
 }
 
@@ -827,6 +1322,7 @@ async function handleDestination(
     await sendTelegram(
       env,
       chatId,
+
       "❌ Please send a valid destination station name or station code."
     );
 
@@ -836,10 +1332,12 @@ async function handleDestination(
   await sendTelegram(
     env,
     chatId,
+
     `🔎 Checking destination "${cleanDestination}" on train ${pending.train_number}...`
   );
 
   try {
+
     const data =
       await getTrainStatus(
         env,
@@ -860,6 +1358,7 @@ async function handleDestination(
     const station =
       timeline.find(
         (item) => {
+
           const name =
             String(
               item?.stationName ||
@@ -880,12 +1379,14 @@ async function handleDestination(
       );
 
     if (!station) {
+
       await sendTelegram(
         env,
         chatId,
-        `❌ Destination "${cleanDestination}" was not found in train ${pending.train_number}'s route.
 
-Please send the exact station name or station code.`
+        `❌ Destination "${cleanDestination}" was not found in train ${pending.train_number}'s route.\n\n` +
+
+          `Please send the exact station name or station code.`
       );
 
       return true;
@@ -906,19 +1407,23 @@ Please send the exact station name or station code.`
     await sendTelegram(
       env,
       chatId,
-      `✅ Alert set successfully!
 
-🚆 Train: ${pending.train_number}
-📍 Destination: ${
-        station.stationName ||
-        station.stationCode
-      }
-🔔 Alert: 15 minutes before arrival
+      `✅ Alert set successfully!\n\n` +
 
-I'll notify you when the train is approximately 15 minutes away from your destination.`
+        `🚆 Train: ${pending.train_number}\n` +
+
+        `📍 Destination: ${
+          station.stationName ||
+          station.stationCode
+        }\n` +
+
+        `🔔 Alert: 15 minutes before arrival\n\n` +
+
+        `I'll notify you when the train is approximately 15 minutes away from your destination.`
     );
 
   } catch (error) {
+
     console.error(
       "Alert destination error:",
       error
@@ -927,14 +1432,15 @@ I'll notify you when the train is approximately 15 minutes away from your destin
     await sendTelegram(
       env,
       chatId,
-      `❌ Couldn't verify the destination right now.
 
-Please try again later.
+      `❌ Couldn't verify the destination right now.\n\n` +
 
-Error: ${
-        error.message ||
-        "Unknown error"
-      }`
+        `Please try again later.\n\n` +
+
+        `Error: ${
+          error.message ||
+          "Unknown error"
+        }`
     );
   }
 
@@ -965,15 +1471,115 @@ async function handleCancelAlert(
     await sendTelegram(
       env,
       chatId,
+
       "📭 You don't have any active train alert."
     );
+
     return;
   }
 
   await sendTelegram(
     env,
     chatId,
+
     "❌ Train alert cancelled successfully."
+  );
+}
+
+
+/* =========================
+   MY ALERTS UI
+========================= */
+
+async function showAlertsMenu(
+  env,
+  chatId,
+  messageId
+) {
+  const result =
+    await env.DB.prepare(`
+      SELECT
+        train_number,
+        destination,
+        alert_minutes
+      FROM train_alerts
+      WHERE telegram_id = ?
+      AND alert_sent = 0
+      AND destination != 'PENDING'
+      ORDER BY id DESC
+    `)
+      .bind(chatId)
+      .all();
+
+  let text =
+    `🔔 MY ALERTS\n\n`;
+
+  if (
+    !result.results ||
+    result.results.length === 0
+  ) {
+
+    text +=
+      `📭 You don't have any active train alerts.\n\n` +
+
+      `Use /alert 12522 to create one.`;
+
+    await editTelegramMessage(
+      env,
+      chatId,
+      messageId,
+      text,
+      backButton()
+    );
+
+    return;
+  }
+
+  text +=
+    `You have ${result.results.length} active alert(s):\n\n`;
+
+  for (
+    const alert of result.results
+  ) {
+
+    text +=
+      `🚆 Train: ${alert.train_number}\n` +
+
+      `📍 Destination: ${alert.destination}\n` +
+
+      `🔔 Alert: ${alert.alert_minutes} minutes before arrival\n\n`;
+  }
+
+  text +=
+    `Use the button below to cancel active alerts.`;
+
+  await editTelegramMessage(
+    env,
+    chatId,
+    messageId,
+    text,
+
+    {
+      inline_keyboard: [
+
+        [
+          {
+            text: "❌ Cancel Alerts",
+            callback_data:
+              "cancel_alerts",
+          },
+        ],
+
+        [
+          {
+            text: "⬅️ Back",
+            callback_data:
+              "main_menu",
+          },
+        ],
+
+      ],
+    }
   );
 }
 
@@ -1006,13 +1612,16 @@ async function checkTrainAlerts(
     console.log(
       "No active train alerts."
     );
+
     return;
   }
 
   for (
     const alert of result.results
   ) {
+
     try {
+
       const data =
         await getTrainStatus(
           env,
@@ -1034,6 +1643,7 @@ async function checkTrainAlerts(
       const destination =
         timeline.find(
           (station) => {
+
             const code =
               String(
                 station?.stationCode ||
@@ -1056,59 +1666,79 @@ async function checkTrainAlerts(
         );
 
       if (!destination) {
+
         console.log(
           "Destination not found:",
           alert.destination
         );
+
         continue;
       }
 
-      // If train has already passed destination,
-      // do not send an old alert.
+
+      /* =========================
+         TRAIN PASSED DESTINATION
+      ========================= */
+
       if (
         destination.status ===
         "passed"
       ) {
+
         await env.DB.prepare(`
           UPDATE train_alerts
           SET alert_sent = 1
           WHERE id = ?
         `)
-          .bind(alert.id)
+          .bind(
+            alert.id
+          )
           .run();
 
         continue;
       }
 
-      // If destination is current,
-      // alert window has already passed.
+
+      /* =========================
+         TRAIN AT DESTINATION
+      ========================= */
+
       if (
         destination.status ===
         "current"
       ) {
+
         await env.DB.prepare(`
           UPDATE train_alerts
           SET alert_sent = 1
           WHERE id = ?
         `)
-          .bind(alert.id)
+          .bind(
+            alert.id
+          )
           .run();
 
         await sendTelegram(
           env,
           alert.telegram_id,
-          `🚆 ARRIVAL UPDATE
 
-Your train ${alert.train_number} has reached ${destination.stationName || destination.stationCode}.
+          `🚆 ARRIVAL UPDATE\n\n` +
 
-📍 Destination: ${
-            destination.stationName ||
-            destination.stationCode
-          }`
+            `Your train ${alert.train_number} has reached ${destination.stationName || destination.stationCode}.\n\n` +
+
+            `📍 Destination: ${
+              destination.stationName ||
+              destination.stationCode
+            }`
         );
 
         continue;
       }
+
+
+      /* =========================
+         ONLY UPCOMING STATIONS
+      ========================= */
 
       if (
         destination.status !==
@@ -1117,34 +1747,46 @@ Your train ${alert.train_number} has reached ${destination.stationName || destin
         continue;
       }
 
+
       const arrival =
-        destination.arrival || {};
+        destination.arrival ||
+        {};
+
 
       let arrivalMinutes =
         parseTimeToMinutes(
           arrival.actual
         );
 
+
       if (
         arrivalMinutes === null
       ) {
+
         arrivalMinutes =
           parseTimeToMinutes(
             arrival.scheduled
           );
       }
 
+
       if (
         arrivalMinutes === null
       ) {
+
         console.log(
           "No arrival time for:",
           destination.stationName
         );
+
         continue;
       }
 
-      // Add station delay if available.
+
+      /* =========================
+         ADD DELAY
+      ========================= */
+
       const delayMinutes =
         parseDelayMinutes(
           arrival.delay
@@ -1153,20 +1795,28 @@ Your train ${alert.train_number} has reached ${destination.stationName || destin
       arrivalMinutes +=
         delayMinutes;
 
+
       const nowMinutes =
         getCurrentIndiaMinutes();
+
 
       let minutesUntil =
         arrivalMinutes -
         nowMinutes;
 
-      // Handle midnight crossing.
+
+      /* =========================
+         MIDNIGHT CROSSING
+      ========================= */
+
       if (
         minutesUntil < -720
       ) {
+
         minutesUntil +=
           24 * 60;
       }
+
 
       console.log(
         "Alert check:",
@@ -1176,37 +1826,51 @@ Your train ${alert.train_number} has reached ${destination.stationName || destin
         minutesUntil
       );
 
+
+      /* =========================
+         SEND ALERT
+      ========================= */
+
       if (
         minutesUntil <=
           alert.alert_minutes &&
         minutesUntil >= 0
       ) {
+
         await sendTelegram(
           env,
           alert.telegram_id,
-          `🔔 TRAIN ARRIVAL ALERT
 
-🚆 Train: ${alert.train_number}
-📍 Destination: ${
-            destination.stationName ||
-            destination.stationCode
-          }
+          `🔔 TRAIN ARRIVAL ALERT\n\n` +
 
-⏰ Your train is expected to reach your destination in approximately ${Math.max(
-            0,
-            Math.round(minutesUntil)
-          )} minutes.
+            `🚆 Train: ${alert.train_number}\n` +
 
-Please get ready to get down. 🚉`
+            `📍 Destination: ${
+              destination.stationName ||
+              destination.stationCode
+            }\n\n` +
+
+            `⏰ Your train is expected to reach your destination in approximately ${Math.max(
+              0,
+              Math.round(
+                minutesUntil
+              )
+            )} minutes.\n\n` +
+
+            `Please get ready to get down. 🚉`
         );
+
 
         await env.DB.prepare(`
           UPDATE train_alerts
           SET alert_sent = 1
           WHERE id = ?
         `)
-          .bind(alert.id)
+          .bind(
+            alert.id
+          )
           .run();
+
 
         console.log(
           "Alert sent:",
@@ -1215,6 +1879,7 @@ Please get ready to get down. 🚉`
       }
 
     } catch (error) {
+
       console.error(
         "Train alert error:",
         alert.id,
@@ -1226,28 +1891,36 @@ Please get ready to get down. 🚉`
 
 
 /* =========================
-   MESSAGE HANDLER
+   CALLBACK QUERY HANDLER
 ========================= */
 
-async function handleUpdate(
-  update,
+async function handleCallbackQuery(
+  callbackQuery,
   env
 ) {
+  const data =
+    callbackQuery?.data ||
+    "";
+
   const message =
-    update?.message;
+    callbackQuery?.message;
 
   if (!message?.chat) {
     return;
   }
 
   const chatId =
-    String(message.chat.id);
+    String(
+      message.chat.id
+    );
+
+  const messageId =
+    message.message_id;
 
   const username =
-    message.from?.username || "";
+    callbackQuery?.from
+      ?.username || "";
 
-  const text =
-    message.text || "";
 
   await saveUser(
     env,
@@ -1255,14 +1928,367 @@ async function handleUpdate(
     username
   );
 
+
+  await answerCallbackQuery(
+    env,
+    callbackQuery.id
+  );
+
+
+  switch (data) {
+
+    /* =========================
+       MAIN MENU
+    ========================= */
+
+    case "main_menu":
+
+      await showMainMenu(
+        env,
+        chatId,
+        messageId
+      );
+
+      break;
+
+
+    /* =========================
+       PNR MENU
+    ========================= */
+
+    case "pnr_menu":
+
+      await showPNRMenu(
+        env,
+        chatId,
+        messageId
+      );
+
+      break;
+
+
+    /* =========================
+       ADD PNR
+    ========================= */
+
+    case "pnr_add":
+
+      await editTelegramMessage(
+        env,
+        chatId,
+        messageId,
+
+        `➕ ADD PNR\n\n` +
+
+          `Send your 10-digit PNR using:\n\n` +
+
+          `/add 1234567890`,
+
+        backButton()
+      );
+
+      break;
+
+
+    /* =========================
+       CHECK PNR
+    ========================= */
+
+    case "pnr_check":
+
+      await editTelegramMessage(
+        env,
+        chatId,
+        messageId,
+
+        `🔎 CHECK PNR\n\n` +
+
+          `Send your PNR using:\n\n` +
+
+          `/check 1234567890`,
+
+        backButton()
+      );
+
+      break;
+
+
+    /* =========================
+       REMOVE PNR
+    ========================= */
+
+    case "pnr_remove":
+
+      await editTelegramMessage(
+        env,
+        chatId,
+        messageId,
+
+        `🗑️ REMOVE PNR\n\n` +
+
+          `Send the PNR you want to remove:\n\n` +
+
+          `/remove 1234567890`,
+
+        backButton()
+      );
+
+      break;
+
+
+    /* =========================
+       MY PNR
+    ========================= */
+
+    case "pnr_list":
+
+      await showPNRListUI(
+        env,
+        chatId,
+        messageId
+      );
+
+      break;
+
+
+    /* =========================
+       TRAIN MENU
+    ========================= */
+
+    case "train_menu":
+
+      await showTrainMenu(
+        env,
+        chatId,
+        messageId
+      );
+
+      break;
+
+
+    /* =========================
+       LIVE TRAIN
+    ========================= */
+
+    case "train_live":
+
+      await editTelegramMessage(
+        env,
+        chatId,
+        messageId,
+
+        `📍 LIVE TRAIN STATUS\n\n` +
+
+          `Send the 5-digit train number:\n\n` +
+
+          `/train 12522`,
+
+        backButton()
+      );
+
+      break;
+
+
+    /* =========================
+       ALERTS
+    ========================= */
+
+    case "alerts_menu":
+
+      await showAlertsMenu(
+        env,
+        chatId,
+        messageId
+      );
+
+      break;
+
+
+    /* =========================
+       CANCEL ALERTS
+    ========================= */
+
+    case "cancel_alerts":
+
+      await handleCancelAlert(
+        env,
+        chatId
+      );
+
+
+      await showAlertsMenu(
+        env,
+        chatId,
+        messageId
+      );
+
+      break;
+
+
+    /* =========================
+       HELP
+    ========================= */
+
+    case "help_menu":
+
+      await showHelpMenu(
+        env,
+        chatId,
+        messageId
+      );
+
+      break;
+
+
+    /* =========================
+       FUTURE FEATURES
+    ========================= */
+
+    case "search_menu":
+
+      await showComingSoon(
+        env,
+        chatId,
+        messageId,
+        "🔍 SEARCH TRAINS"
+      );
+
+      break;
+
+
+    case "availability_menu":
+
+      await showComingSoon(
+        env,
+        chatId,
+        messageId,
+        "💺 AVAILABILITY"
+      );
+
+      break;
+
+
+    case "fare_menu":
+
+      await showComingSoon(
+        env,
+        chatId,
+        messageId,
+        "💰 FARE ENQUIRY"
+      );
+
+      break;
+
+
+    case "station_menu":
+
+      await showComingSoon(
+        env,
+        chatId,
+        messageId,
+        "🚉 STATION INFO"
+      );
+
+      break;
+
+
+    default:
+
+      await showMainMenu(
+        env,
+        chatId,
+        messageId
+      );
+  }
+}
+
+
+/* =========================
+   START
+========================= */
+
+async function handleStart(
+  env,
+  chatId
+) {
+  await showMainMenu(
+    env,
+    chatId
+  );
+}
+
+
+/* =========================
+   MESSAGE HANDLER
+========================= */
+
+async function handleUpdate(
+  update,
+  env
+) {
+
+  /* =========================
+     INLINE BUTTON CLICK
+  ========================= */
+
+  if (
+    update?.callback_query
+  ) {
+
+    await handleCallbackQuery(
+      update.callback_query,
+      env
+    );
+
+    return;
+  }
+
+
+  /* =========================
+     NORMAL MESSAGE
+  ========================= */
+
+  const message =
+    update?.message;
+
+  if (!message?.chat) {
+    return;
+  }
+
+
+  const chatId =
+    String(
+      message.chat.id
+    );
+
+
+  const username =
+    message.from
+      ?.username || "";
+
+
+  const text =
+    message.text || "";
+
+
+  await saveUser(
+    env,
+    chatId,
+    username
+  );
+
+
   /*
-    If user has a pending destination,
-    treat normal text as destination.
+     If user has a pending
+     destination, treat normal
+     text as destination.
   */
+
   if (
     text &&
     !text.startsWith("/")
   ) {
+
     const handled =
       await handleDestination(
         env,
@@ -1275,79 +2301,109 @@ async function handleUpdate(
     }
   }
 
+
   const {
     command,
     argument
-  } = getCommand(text);
+  } =
+    getCommand(text);
+
 
   switch (command) {
 
     case "/start":
+
       await handleStart(
         env,
         chatId
       );
+
       break;
 
+
     case "/add":
+
       await handleAdd(
         env,
         chatId,
         argument
       );
+
       break;
 
+
     case "/check":
+
       await handleCheck(
         env,
         chatId,
         argument
       );
+
       break;
 
+
     case "/train":
+
       await handleTrain(
         env,
         chatId,
         argument
       );
+
       break;
 
+
     case "/alert":
+
       await handleAlert(
         env,
         chatId,
         argument
       );
+
       break;
 
+
     case "/cancelalert":
+
       await handleCancelAlert(
         env,
         chatId
       );
+
       break;
 
+
     case "/list":
+
       await handleList(
         env,
         chatId
       );
+
       break;
 
+
     case "/remove":
+
       await handleRemove(
         env,
         chatId,
         argument
       );
+
       break;
 
+
     default:
+
       await sendTelegram(
         env,
         chatId,
-        "❓ Unknown command.\n\nSend /start to see available commands."
+
+        "❓ Unknown command.\n\n" +
+          "Send /start to open Railway Assistant."
       );
   }
 }
@@ -1363,9 +2419,12 @@ export default {
     request,
     env
   ) {
+
     if (
-      request.method !== "POST"
+      request.method !==
+      "POST"
     ) {
+
       return new Response(
         "🚆 PNR Tracker Bot is running.",
         {
@@ -1374,14 +2433,18 @@ export default {
       );
     }
 
+
     try {
+
       const update =
         await request.json();
+
 
       await handleUpdate(
         update,
         env
       );
+
 
       return new Response(
         "OK",
@@ -1391,16 +2454,20 @@ export default {
       );
 
     } catch (error) {
+
       console.error(
         "Worker error:",
         error
       );
 
+
       return new Response(
+
         `Worker error: ${
           error.message ||
           "Unknown error"
         }`,
+
         {
           status: 500,
         }
@@ -1409,17 +2476,25 @@ export default {
   },
 
 
+  /* =========================
+     CRON
+  ========================= */
+
   async scheduled(
     event,
     env,
     ctx
   ) {
+
     console.log(
       "Running train alert checker..."
     );
 
+
     ctx.waitUntil(
-      checkTrainAlerts(env)
+      checkTrainAlerts(
+        env
+      )
     );
   },
 
