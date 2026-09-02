@@ -2667,42 +2667,17 @@ async function handleUpdate(env, update) {
    * =========================
    */
 
+
   if (update.callback_query) {
-    const callback = update.callback_query;
+  const callback = update.callback_query;
 
-    const chatId =
-      callback.message?.chat?.id ??
-      callback.from?.id;
+  await handleCallbackQuery(
+    callback,
+    env
+  );
 
-    const messageId =
-      callback.message?.message_id;
-
-    const data = callback.data || "";
-
-    if (!chatId) return;
-
-    await answerCallbackQuery(
-      env,
-      callback.id
-    );
-
-    await saveUser(
-      env,
-      chatId,
-      callback.from?.username || "",
-      callback.from?.first_name || ""
-    );
-
-    await handleCallbackQuery(
-      env,
-      chatId,
-      messageId,
-      data
-    );
-
-    return;
-  }
-
+  return;
+}
 
   /*
    * =========================
